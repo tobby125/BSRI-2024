@@ -131,24 +131,27 @@ def powerset(x):
     return list(chain.from_iterable(combinations(x, i) for i in range(len(x) + 1)))
 
 
-v = 8
-S = Simplicial(v)
-F = [(0, 1, 2), (3, 4, 5), (1, 2, 6), (0, 3, 7), (2, 4, 6), (0, 1, 3), (4, 6, 7)]
-F = [(0, 1, 2), (3, 4, 5), (1, 2, 6), (0, 3, 7), (4, 6)]
-S.non_faces(F)
-print(S.faces)
-S.reduce_faces()
-print(S.faces)
-print()
+def run(v, F, d):
+    S = Simplicial(v)
+    S.non_faces(F)
+    print(S.faces)
+    S.reduce_faces()
+    print(S.faces)
+    print()
 
-d = 4
+    for i in range(100000):
+        if i % 100 == 0:
+            print(i)
+        S.embed(d)
+        if S.check_embedding():
+            print()
+            print('success!')
+            print(S.coords)
+            S.plot()
+            break
 
-for i in range(100000):
-    if i % 100 == 0:
-        print(i)
-    S.embed(d)
-    if S.check_embedding():
-        print()
-        print('success!')
-        print(S.coords)
-        break
+v = 6
+F = [(0, 1), (2, 3), (0, 4), (1, 2), (3, 4)]
+d = 2
+
+run(v, F, d)
