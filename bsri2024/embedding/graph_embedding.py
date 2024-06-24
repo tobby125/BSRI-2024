@@ -125,6 +125,9 @@ class Simplicial:
             points += [points[0]]
             plt.plot(*np.array(points).T)
 
+        for v in self.verts:
+            plt.annotate(v, self.coords[v])
+
         plt.show()
 
 def powerset(x):
