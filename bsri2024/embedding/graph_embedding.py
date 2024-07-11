@@ -3,8 +3,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from itertools import combinations, chain, product
 import random
+
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.optimize import linprog
 import time
+from math import sqrt
 
 def t(f):
     def r(*args, **kwargs):
@@ -70,10 +73,9 @@ class Simplicial:
                 self.faces.append(s)
 
     def embed(self, d):
-        '''space = list(product(np.linspace(0, 99, 100), repeat=d))
-        self.coords = random.sample(space, len(self.verts))'''
+        #space = list(product(np.linspace(0, 9, 10), repeat=d))
+        #self.coords = random.sample(space, len(self.verts))
         self.coords = [tuple(random.random() for _ in range(d)) for _ in range(len(self.verts))]
-        #self.coords = [(0, 0), (1, 1), (1, 0), (0, 1)]
 
     def is_simplex(self, f):
         if len(f) <= 1:
@@ -85,7 +87,7 @@ class Simplicial:
     def intersect(self, f1, f2):
         if not (f1 and f2):
             return False, []
-        M = np.array([self.coords[i] + (1, 0) for i in f1] + [np.concatenate((-np.array(self.coords[i]), [0, 1])) for i in f2]).T
+        M = np.array([np.concatenate((self.coords[i], (1, 0))) for i in f1] + [np.concatenate((-np.array(self.coords[i]), [0, 1])) for i in f2]).T
         c = np.array([-1 if i not in f2 else 0 for i in f1] + [-1 if i not in f1 else 0 for i in f2])
         b_eq = np.concatenate((np.zeros(len(self.coords[0])), [1, 1]))
         result = linprog(c=c, A_eq=M, b_eq=b_eq, bounds=[0, 1])
@@ -103,7 +105,7 @@ class Simplicial:
         for f in self.faces:
             if not self.is_simplex(f):
                 if p:
-                    print(f'Face {f} with coords {[S.coords[i] for i in f]} not a simplex')
+                    print(f'Face {f} with coords {[self.coords[i] for i in f]} not a simplex')
                 r = False
                 return False
 
@@ -111,23 +113,50 @@ class Simplicial:
             inter, point = self.intersect(f1, f2)
             if inter:
                 if p:
-                    print(f'Faces {f1} and {f2} intersect with coords {[S.coords[i] for i in f1]} and {[S.coords[i] for i in f2]} at point {point}')
+                    print(f'Faces {f1} and {f2} intersect with coords {[self.coords[i] for i in f1]} and {[self.coords[i] for i in f2]} at point {point}')
                 r = False
                 return False
 
         return r
 
-    def plot(self):
-        plt.figure()
+    def plot(self, d, double=None):
+        fig = plt.figure(figsize=plt.figaspect(0.5))
+
+        if d <= 2:
+            ax = plt.axes()
+        elif d == 3:
+            ax = fig.add_subplot(1, 2, 1, projection='3d')
+        else:
+            return
 
         for face in self.faces:
-            points = [self.coords[i] for i in face]
-            points += [points[0]]
-            plt.plot(*np.array(points).T)
+            for pair in combinations(face, 2):
+                points = [self.coords[i] for i in pair]
+                points.append(points[0])
+                ax.plot(*zip(*points))
+
+        '''poly = [[self.coords[i] for i in tri] for face in self.faces for tri in combinations(face, 3)]
+        ax.add_collection3d(Poly3DCollection(poly, edgecolors='black'))'''
 
         for v in self.verts:
-            plt.annotate(v, self.coords[v])
+            ax.text(*self.coords[v], v + 1, fontsize=20)
 
+        if double is not None:
+
+            self.faces = double
+            ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+            for face in self.faces:
+                for pair in combinations(face, 2):
+                    points = [self.coords[i] for i in pair]
+                    points.append(points[0])
+                    ax2.plot(*zip(*points))
+            for v in self.verts:
+                ax2.text(*self.coords[v], v + 1, fontsize=20)
+
+        lim = [-1, 1]
+        '''ax.set_xlim(lim)
+        ax.set_ylim(lim)
+        ax.set_zlim(lim)'''
         plt.show()
 
 def powerset(x):
@@ -135,11 +164,13 @@ def powerset(x):
 
 
 def run(v, F, d):
+    print(F)
     S = Simplicial(v)
     S.non_faces(F)
     print(S.faces)
     S.reduce_faces()
     print(S.faces)
+    print(len(S.faces))
     print()
 
     for i in range(100000):
@@ -147,14 +178,106 @@ def run(v, F, d):
             print(i)
         S.embed(d)
         if S.check_embedding():
+            print(i)
             print()
             print('success!')
             print(S.coords)
-            S.plot()
+            S.plot(d)
             break
 
-v = 6
-F = [(0, 1), (2, 3), (0, 4), (1, 2), (3, 4)]
-d = 2
+def add1(f):
+    return [tuple(j + 1 for j in i) for i in f]
+def sub1(f):
+    return [tuple(j - 1 for j in i) for i in f]
+def non_faces_from_maximals(maximals):
+    return [maximals[i] + maximals[(i - 2) % 5] for i in range(5)]
 
-run(v, F, d)
+def embed_maximal(maximals, x, faces1):
+    v = max(max(i) for i in maximals)
+    d = v - 4
+    S = Simplicial(v)
+    F = non_faces_from_maximals(maximals)
+    S.non_faces(sub1(F))
+    S.reduce_faces()
+    faces = add1(S.faces)
+    print(f'faces = {faces}')
+    faces2 = list(set(faces) - set(faces1))
+    print(f'faces1 = {faces1}')
+    print(f'faces2 = {faces2}')
+
+    S.coords = np.array(x)
+    for f in faces1, faces2:
+        S.faces = sub1(f)
+        print(S.check_embedding())
+
+    from testing import intersection_volume_proportion
+    S.faces = sub1(faces)
+    print(intersection_volume_proportion(S))
+    S.faces = sub1(faces1)
+    S.plot(d, double=sub1(faces2))
+
+def simplex_coords(d):
+    coords = np.append([np.zeros(d)], np.eye(d), axis=0)
+    avg = sum(coords) / len(coords)
+    coords -= avg
+    return coords
+
+def boundary(face):
+    return list(combinations(face, len(face) - 1))
+def join(sets):
+    return [sum(x, start=()) for x in product(*sets)]
+
+def boundary_join(maximals, boundary_indices):
+    j = [boundary(maximals[i]) for i in boundary_indices] + [[x] for i, x in enumerate(maximals) if i not in boundary_indices]
+    j = join(j)
+    for i, x in enumerate(j):
+        j[i] = tuple(sorted(x))
+    return j
+
+def facet_partition(maximals):
+    return [boundary_join(maximals, np.array([i, i + 1, i + 2]) % 5) for i in range(5)]
+
+def layer(verts, start_coord, total_dim, z_coord):
+    return [np.concatenate((np.zeros(start_coord), x, np.zeros(total_dim - start_coord - verts), [z_coord]))
+              for x in simplex_coords(verts - 1)]
+
+def layer_coords(maximals, order):
+    v = max(sum(maximals, start=()))
+    d = v - 4
+    x = (v+1) * [0]
+    start = 0
+    for ii, i in enumerate(order):
+        s = maximals[i]
+        lay = layer(len(s), start, d, ii)
+        for j, la in zip(s, lay):
+            x[j] = la
+        start += len(s) - 1
+    return x[1:]
+
+def embed_layers(maximals):
+    order = 0, 1, 2, 3, 4
+    x = layer_coords(maximals, order)
+    part = facet_partition(maximals)
+    embed_maximal(maximals, x, part[1])
+
+if __name__ == '__main__':
+    maximals = (1, 2, 3), (4, 5, 6), (8,), (9, 10), (11, 7)
+
+    S = Simplicial(7)
+    faces = (1, 2, 3, 4), (1, 2, 4, 5), (1, 2, 5, 6), (1, 2, 6, 7)
+
+    x = 8*[(2, 3, 4)]
+
+    x[1] = 0, 0, 0
+    x[2] = 2, 0, 0
+    x[3] = 1, 2, 1
+    x[4] = 1, 1, 2
+    x[5] = 1, 0, 3
+    x[6] = 1, -1, 2
+    x[7] = 1, -2, 1
+
+
+    S.faces = sub1(faces)
+    S.coords = np.array(x[1:])
+    print(S.check_embedding())
+    S.plot(3)
