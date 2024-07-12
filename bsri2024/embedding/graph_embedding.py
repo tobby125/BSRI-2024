@@ -264,20 +264,22 @@ if __name__ == '__main__':
     maximals = (1, 2, 3), (4, 5, 6), (8,), (9, 10), (11, 7)
 
     S = Simplicial(7)
-    faces = (1, 2, 3, 4), (1, 2, 4, 5), (1, 2, 5, 6), (1, 2, 6, 7)
+    faces = (1, 2, 3, 4), (1, 2, 4, 5), (1, 2, 5, 6), (1, 2, 6, 7), (1, 2, 3, 7)
 
     x = 8*[(2, 3, 4)]
 
     x[1] = 0, 0, 0
     x[2] = 2, 0, 0
-    x[3] = 1, 2, 1
-    x[4] = 1, 1, 2
-    x[5] = 1, 0, 3
-    x[6] = 1, -1, 2
-    x[7] = 1, -2, 1
+    x[3] = 1, 2, -1
+    x[4] = 1, 1, 0
+    x[5] = 1.2, 0, 1
+    x[6] = 1, -1, 0
+    x[7] = 1, -2, -1
 
 
     S.faces = sub1(faces)
     S.coords = np.array(x[1:])
     print(S.check_embedding())
+    from testing import intersection_volume_proportion
+    print(intersection_volume_proportion(S))
     S.plot(3)
