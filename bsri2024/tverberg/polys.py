@@ -1,6 +1,14 @@
 import math
 from itertools import product
 
+def numberToBase(n, b):
+    if n == 0:
+        return [0]
+    digits = []
+    while n:
+        digits.append(int(n % b))
+        n //= b
+    return digits[::-1]
 class Poly:
     def __init__(self, mod, order, values=None):
         self.mod = mod
@@ -70,9 +78,10 @@ class Poly:
     def __str__(self):
         return str(self.values)
 
-for i in range(100):
-    q = 3
-    d = 2
+prints = 0
+for i in range(1000):
+    q = 11
+    d = 1
     m = i
     n = ((q - 1)*(d + m + 1) + m*(q**2-1)//2) // 2
     n1 = (q - 1)*(d + m + 1) // 2
@@ -89,5 +98,7 @@ for i in range(100):
     poly = x**n1 * y**n1 * math.prod(a[0]*x + a[1]*y for a in A)**m * (math.factorial(q-1)**n1)
 
     if poly.values:
+        prints += 1
+
         print(f'm = {m}, n = {n}')
         print(f'\t\t{poly}')

@@ -149,20 +149,6 @@ def find_embedding(S, approx=False):
         subset = random.sample(list(combinations(S.faces, 2)), 50)
         guess = np.array([random.random() for _ in range(v * d)])
 
-        x = 9 * [(0, 0, 0, 0)]
-
-        x[3] = 0, 0, 0, 0
-        x[2] = 1, 0, 0, 1
-        x[8] = -1, 0, 0, 1
-        x[4] = 0, 0, 0, 2
-        x[1] = 0, 1, 0, 3
-        x[6] = 0, -1 / 2, math.sqrt(3) / 2, 3
-        x[7] = 0, -1 / 2, -math.sqrt(3) / 2, 3
-        x[5] = 0, 0, 0, 4
-
-        guess = np.array(x[1:]).flatten()
-
-
         optimizer = minimize
 
         b = optimizer(f, guess)
@@ -208,15 +194,48 @@ def find_embedding(S, approx=False):
             return 0
 
 
+def better_find_embedding(S):
+    sphere_count = 0
+
+    def f(p):
+        S.coords[0] = np.zeros(d)
+        S.coords[1:d + 1] = np.eye(d)
+        S.coords[d + 1:] = np.reshape(p, (v - d - 1, d))
+        r = intersection_volume_proportion(S)
+        r = round(r, 12)
+        print(100 * '\b', end='')
+        print(r, end='')
+        return r
+
+    while True:
+        guess = np.array([random.random() for _ in range((v - d - 1) * d)])
+
+        optimizer = minimize
+
+        b = optimizer(f, guess)
+        print(100 * '\b', end='')
+        print(b.fun)
+        if b.fun == 0.5:
+            print('probably a sphere')
+            print(list(list(float(j) for j in i) for i in S.coords))
+            S.plot(d)
+            if sphere_count == 1:
+                return 0.5
+            sphere_count += 1
+            continue
+        if b.fun != 0:
+            sphere_count = 0
+            continue
+        if S.check_embedding():
+            print('success')
+            return 0
+        else:
+            print('WEIRD CASE: EMBEDDING DIDN\'T WORK ')
+
 if __name__ == '__main__':
-    F = [(0, 5, 3), (1, 6, 4), (2, 0, 5), (3, 1, 6), (4, 2, 0), (5, 3, 1), (6, 4, 2)]
-    v = max(max(i) for i in F) + 1
-    d = v - 4
-    S = Simplicial(v)
-    S.non_faces(F)
-    S.reduce_faces()
 
     Fs = [
+        [(0, 5, 3), (1, 6, 4), (2, 0, 5), (3, 1, 6), (4, 2, 0), (5, 3, 1), (6, 4, 2)],
         [(0, 5, 6, 3), (1, 7, 4), (2, 0, 5, 6), (3, 1, 7), (4, 2)],
         [(0, 3, 5, 6), (1, 4), (2, 0, 5), (3, 1, 6), (4, 2)],
         [(0, 3), (1, 4), (2, 0), (3, 1), (4, 2)],
@@ -235,8 +254,7 @@ if __name__ == '__main__':
 
         v = max(max(i) for i in F) + 1
         d = v - 4
-
-        S.verts = range(v)
+        S = Simplicial(v)
 
         print(f'v = {v}, d = {d}')
         print(f'F = {F}')
@@ -251,10 +269,11 @@ if __name__ == '__main__':
         S.non_faces(F)
         S.reduce_faces()
 
-        S.faces = [(0, 1, 2, 3, 5), (0, 1, 2, 3, 6), (0, 1, 2, 5, 7), (0, 1, 2, 6, 7), (0, 1, 3, 4, 5), (0, 1, 3, 4, 6), (0, 1, 4, 5, 6), (0, 1, 5, 6, 7), (0, 2, 3, 5, 7), (0, 2, 3, 6, 7), (0, 3, 4, 5, 7), (0, 3, 4, 6, 7), (0, 4, 5, 6, 7), (1, 2, 3, 5, 6), (1, 2, 5, 6, 7), (1, 3, 4, 5, 6), (2, 3, 5, 6, 7), (3, 4, 5, 6, 7)]
         print(f'{len(S.faces)} faces: {S.faces}')
         print(f'{len(S.faces)} choose 2 = {math.comb(len(S.faces), 2)}')
 
-        print(f'#############  {find_embedding(S, approx=False)}  #############')
+        em = better_find_embedding
+
+        print(f'#############  {em(S)}  #############')
         print(f'runtime = {time.time() - t}')
         print()

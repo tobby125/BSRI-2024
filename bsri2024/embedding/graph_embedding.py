@@ -261,7 +261,10 @@ def embed_layers(maximals):
     embed_maximal(maximals, x, part[1])
 
 if __name__ == '__main__':
-    maximals = (1, 2, 3), (4, 5, 6), (8,), (9, 10), (11, 7)
+    maximals = (1, 2, 3), (4,), (5,), (6,), (7,)
+    embed_layers(maximals)
+    quit()
+
 
     S = Simplicial(7)
     faces = (1, 2, 3, 4), (1, 2, 4, 5), (1, 2, 5, 6), (1, 2, 6, 7), (1, 2, 3, 7)
@@ -271,9 +274,9 @@ if __name__ == '__main__':
     x[1] = 0, 0, 0
     x[2] = 2, 0, 0
     x[3] = 1, 2, -1
-    x[4] = 1, 1, 0
+    x[4] = 1, 2, 0
     x[5] = 1.2, 0, 1
-    x[6] = 1, -1, 0
+    x[6] = 1, -2, 0
     x[7] = 1, -2, -1
 
 
