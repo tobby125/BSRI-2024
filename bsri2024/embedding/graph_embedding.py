@@ -7,7 +7,11 @@ import random
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.optimize import linprog
 import time
-from math import sqrt
+import math
+from sympy import Matrix
+from pypoman import compute_polytope_vertices
+from scipy.spatial import ConvexHull, _qhull
+from scipy.optimize import basinhopping, minimize
 
 def t(f):
     def r(*args, **kwargs):
@@ -101,12 +105,10 @@ class Simplicial:
         return False, []
 
     def check_embedding(self, p=False):
-        r = True
         for f in self.faces:
             if not self.is_simplex(f):
                 if p:
                     print(f'Face {f} with coords {[self.coords[i] for i in f]} not a simplex')
-                r = False
                 return False
 
         for f1, f2 in combinations(self.faces, 2):
@@ -114,10 +116,9 @@ class Simplicial:
             if inter:
                 if p:
                     print(f'Faces {f1} and {f2} intersect with coords {[self.coords[i] for i in f1]} and {[self.coords[i] for i in f2]} at point {point}')
-                r = False
                 return False
 
-        return r
+        return True
 
     def plot(self, d, double=None):
         fig = plt.figure(figsize=plt.figaspect(0.5))
@@ -159,124 +160,226 @@ class Simplicial:
         ax.set_zlim(lim)'''
         plt.show()
 
-def powerset(x):
-    return list(chain.from_iterable(combinations(x, i) for i in range(len(x) + 1)))
+    def num_intersections(self):
+        for f in self.faces:
+            if not self.is_simplex(f):
+                return math.comb(len(self.faces), 2) + 1
 
+        s = 0
+        for f1, f2 in combinations(self.faces, 2):
+            inter, point = self.intersect(f1, f2)
+            if inter:
+                s += 1
+        return s
 
-def run(v, F, d):
-    print(F)
-    S = Simplicial(v)
-    S.non_faces(F)
-    print(S.faces)
-    S.reduce_faces()
-    print(S.faces)
-    print(len(S.faces))
-    print()
+    def intersection_volume(self, f1, f2):
+        d = len(self.coords[0])
+        if len(f1) < d + 1 or len(f2) < d + 1:
+            return 0
 
-    for i in range(100000):
-        if i % 100 == 0:
-            print(i)
-        S.embed(d)
-        if S.check_embedding():
-            print(i)
-            print()
-            print('success!')
-            print(S.coords)
-            S.plot(d)
-            break
+        A_eq = np.array(
+            [np.concatenate((self.coords[i], (1, 0))) for i in f1] + [np.concatenate((-np.array(self.coords[i]), [0, 1])) for
+                                                                   i in f2]).T
+        b_eq = np.concatenate((np.zeros(len(self.coords[0])), [1, 1]))
 
-def add1(f):
-    return [tuple(j + 1 for j in i) for i in f]
-def sub1(f):
-    return [tuple(j - 1 for j in i) for i in f]
-def non_faces_from_maximals(maximals, k):
-    if k == 5:
-        return [maximals[i] + maximals[(i - 2) % 5] for i in range(5)]
+        if np.linalg.matrix_rank(A_eq) != np.linalg.matrix_rank(np.column_stack((A_eq, b_eq))):
+            return 0
 
-def simplex_coords(d):
-    coords = np.append([np.zeros(d)], np.eye(d), axis=0)
-    avg = sum(coords) / len(coords)
-    coords -= avg
-    return coords
+        def give_ineq(A_eq, b_eq):
+            A = np.column_stack((A_eq, b_eq))
 
-def boundary(face):
-    return list(combinations(face, len(face) - 1))
-def join(sets):
-    return [sum(x, start=()) for x in product(*sets)]
+            M, pivots = Matrix(A).rref()
+            M = np.array(M, dtype=float)
 
-def boundary_join(maximals, boundary_indices):
-    j = [boundary(maximals[i]) for i in boundary_indices] + [[x] for i, x in enumerate(maximals) if i not in boundary_indices]
-    j = join(j)
-    for i, x in enumerate(j):
-        j[i] = tuple(sorted(x))
-    return j
+            new = np.zeros((M.shape[1] - 1, M.shape[1]))
+            for i, p in enumerate(pivots):
+                new[p] = M[i]
 
-def facet_partition(maximals, k):
-    if k == 5:
-        return [boundary_join(maximals, np.array([i, i + 1, i + 2]) % 5) for i in range(5)]
-    if k == 7:
-        return [boundary_join(maximals, np.array([i, i + 1, i + 2]) % 7) for i in range(7)] + \
-                [boundary_join(maximals, np.array([i, i + 1, i + 4]) % 7) for i in range(7)]
+            for i in range(new.shape[0]):
+                if i in pivots:
+                    new[i] = M[pivots.index(i)]
+                else:
+                    new[i][i] = -1
 
-def layer_general(verts, start_coord, total_dim, z_coords):
-    return [np.concatenate((np.zeros(start_coord), x, np.zeros(total_dim - start_coord - verts - len(z_coords) + 1), z_coords))
-              for x in simplex_coords(verts - 1)]
+            neww = np.array([[i[j] for j in range(new.shape[1]) if j not in pivots] for i in new])
 
-seven_coords = np.array([
-     [0.78699, 0.24726, -1],
-     [0.4, .6, -1],
-     [0, 1.35653, 0.30976],
-     [0.73746, 1.23658, 1],
-     [0.24891, 0.6016, 2],
-     [-0.26699, 0.35056, -0.5],
-     [0.8, 0.3, 0.5],
-     [0.78699, 0.24726, -1],
-     [0.4, .6, -1],
-     [0.4, .6, -1]
-])
+            return neww[:, :-1], neww[:, -1]
 
-def layer_coords_general(maximals, k):
-    v = max(sum(maximals, start=())) + 1
-    d = v - 4
-    x = v * [0]
-    start = 0
+        A, b = give_ineq(A_eq, b_eq)
 
-    for i, s in enumerate(maximals):
-        lay = layer_general(len(s), start, d, seven_coords[i])
-        for j, la in zip(s, lay):
-            x[j] = la
-        start += len(s) - 1
-    return x
+        def vertices(A, b):
+            vs = compute_polytope_vertices(A, b)
+            return [-A @ v + b for v in vs]
 
-def embed_layers_general(maximals, k):
-    x = layer_coords_general(maximals, k)
-    part = facet_partition(maximals, k)
-    faces = sum(part, start=[])
+        try:
+            vs = vertices(A, b)
+        except RuntimeError:
+            return 1000
 
-    faces1 = part[1] + part[5] + part[8] + part[9] + part[12] + part[13]
-    embed_maximal_general(maximals, x, faces, faces1)
+        verts = []
+        for vert in vs:
+            lin_comb = sum(c * np.array(v) for c, v in zip(vert[:len(f1)], [self.coords[i] for i in f1]))
+            verts.append(lin_comb)
 
-def embed_maximal_general(maximals, x, faces, faces1):
-    v = max(max(i) for i in maximals)
-    d = v - 4
-    S = Simplicial(v)
-    S.faces = faces
-    print(f'faces = {faces}')
-    faces2 = list(set(faces) - set(faces1))
-    print(f'faces1 = {faces1}')
-    print(f'faces2 = {faces2}')
+        if not verts:
+            return 0
+        verts = np.array(verts)
+        dim = np.linalg.matrix_rank(verts - verts[0])
+        if dim < len(verts[0]):
+            return 0
 
-    S.coords = np.array(x)
-    for f in faces1, faces2:
-        S.faces = f
-        print(S.check_embedding())
+        if len(verts) == 2:
+            return math.dist(*verts)
 
-    from testing import intersection_volume_proportion
-    S.faces = faces
-    print('intersection volume:', intersection_volume_proportion(S))
-    S.faces = faces1
-    #S.plot(d, double=faces2)
+        polytope = ConvexHull(verts)
+        return polytope.volume
 
-if __name__ == '__main__':
-    maximals = (0, 7, 8), (1, 12), (2,), (3, 11), (4, 9, 10, 13), (5,), (6,)
-    embed_layers_general(maximals, 7)
+    def total_intersection_volume(self):
+        for face in self.faces:
+            if not self.is_simplex(face):
+                return 1000
+
+        s = 0
+        for f1, f2 in combinations(self.faces, 2):
+            try:
+                v = self.intersection_volume(f1, f2)
+            except _qhull.QhullError:
+                v = 1000
+
+            s += v
+        return s
+
+    def total_intersection_volume_approx(self):
+        for face in self.faces:
+            if not self.is_simplex(face):
+                return 1000
+
+        s = 0
+        for f1, f2 in subset:
+            try:
+                v = self.intersection_volume(f1, f2)
+            except _qhull.QhullError:
+                v = 1000
+
+            s += v
+
+        if s == 0 and not self.check_embedding():
+            return 1
+        return s * math.comb(len(S.faces), 2) / len(subset)
+
+    def intersection_volume_proportion(self, approx=False):
+        total = 0
+        for face in self.faces:
+            d = len(self.coords[0])
+            if len(face) < d + 1:
+                continue
+            total += abs(np.linalg.det([self.coords[i] - self.coords[face[0]] for i in face[1:]])) / math.factorial(d)
+        return (self.total_intersection_volume_approx() if approx else self.total_intersection_volume()) / total
+
+    def find_embedding(self, approx=False):
+        global subset
+
+        sphere_count = 0
+
+        def f(p):
+            S.coords = np.reshape(p, (v, d))
+            r = intersection_volume_proportion(S, approx=approx)
+            r = round(r, 12)
+            '''if r == 0:
+                if S.check_embedding() and d <= 3:
+                    S.plot(d)'''
+            print(100 * '\b', end='')
+            print(r, end='')
+            return r
+
+        results = []
+        while True:
+            subset = random.sample(list(combinations(S.faces, 2)), 50)
+            guess = np.array([random.random() for _ in range(v * d)])
+
+            optimizer = minimize
+
+            b = optimizer(f, guess)
+            print(100 * '\b', end='')
+            print(b.fun)
+            if b.fun == 0.5:
+                print('probably a sphere')
+                print(list(list(float(j) for j in i) for i in S.coords))
+                S.plot(d)
+                if sphere_count == 1:
+                    return 0.5
+                sphere_count += 1
+                continue
+            if b.fun != 0:
+                sphere_count = 0
+                continue
+            if S.check_embedding():
+                print('success')
+                return 0
+            else:
+                print('WEIRD CASE: EMBEDDING DIDN\'T WORK ')
+
+            def g(p):
+                S.coords = np.reshape(p, (v, d))
+                pro = intersection_volume_proportion(S)
+                if pro > 0:
+                    r = max(100, pro * 10000)
+                    print(100 * '\b', end='')
+                    print(r, end='')
+                    return r
+                r = num_intersections()
+                print(100 * '\b', end='')
+                print(r, end='')
+                return r
+
+            c = basinhopping(g, b.x)
+            print(c)
+            results.append(c.fun)
+            print(results)
+            if c.fun == 0:
+                if S.check_embedding():
+                    print('success')
+                return 0
+
+    def better_find_embedding(self, d):
+        v = len(self.verts)
+
+        sphere_count = 0
+
+        def f(p):
+            self.coords[0] = np.zeros(d)
+            self.coords[1:d + 1] = np.eye(d)
+            self.coords[d + 1:] = np.reshape(p, (v - d - 1, d))
+            r = self.intersection_volume_proportion()
+            r = round(r, 12)
+            print(100 * '\b', end='')
+            print(r, end='')
+            return r
+
+        while True:
+            guess = np.array([random.random() for _ in range((v - d - 1) * d)])
+
+            optimizer = minimize
+
+            b = optimizer(f, guess)
+            print(100 * '\b', end='')
+            print(b.fun)
+            if b.fun == 0.5:
+                print('probably a sphere')
+                print(list(list(float(j) for j in i) for i in self.coords))
+                self.plot(d)
+                if sphere_count == 1:
+                    print(self.coords)
+                    return 0.5
+                sphere_count += 1
+                continue
+            if b.fun != 0:
+                sphere_count = 0
+                continue
+            if self.check_embedding():
+                print('success')
+                print(self.coords)
+                return 0
+            else:
+                print('WEIRD CASE: EMBEDDING DIDN\'T WORK ')
+
