@@ -189,32 +189,9 @@ def add1(f):
     return [tuple(j + 1 for j in i) for i in f]
 def sub1(f):
     return [tuple(j - 1 for j in i) for i in f]
-def non_faces_from_maximals(maximals):
-    return [maximals[i] + maximals[(i - 2) % 5] for i in range(5)]
-
-def embed_maximal(maximals, x, faces1):
-    v = max(max(i) for i in maximals)
-    d = v - 4
-    S = Simplicial(v)
-    F = non_faces_from_maximals(maximals)
-    S.non_faces(sub1(F))
-    S.reduce_faces()
-    faces = add1(S.faces)
-    print(f'faces = {faces}')
-    faces2 = list(set(faces) - set(faces1))
-    print(f'faces1 = {faces1}')
-    print(f'faces2 = {faces2}')
-
-    S.coords = np.array(x)
-    for f in faces1, faces2:
-        S.faces = sub1(f)
-        print(S.check_embedding())
-
-    from testing import intersection_volume_proportion
-    S.faces = sub1(faces)
-    print(intersection_volume_proportion(S))
-    S.faces = sub1(faces1)
-    S.plot(d, double=sub1(faces2))
+def non_faces_from_maximals(maximals, k):
+    if k == 5:
+        return [maximals[i] + maximals[(i - 2) % 5] for i in range(5)]
 
 def simplex_coords(d):
     coords = np.append([np.zeros(d)], np.eye(d), axis=0)
@@ -234,55 +211,72 @@ def boundary_join(maximals, boundary_indices):
         j[i] = tuple(sorted(x))
     return j
 
-def facet_partition(maximals):
-    return [boundary_join(maximals, np.array([i, i + 1, i + 2]) % 5) for i in range(5)]
+def facet_partition(maximals, k):
+    if k == 5:
+        return [boundary_join(maximals, np.array([i, i + 1, i + 2]) % 5) for i in range(5)]
+    if k == 7:
+        return [boundary_join(maximals, np.array([i, i + 1, i + 2]) % 7) for i in range(7)] + \
+                [boundary_join(maximals, np.array([i, i + 1, i + 4]) % 7) for i in range(7)]
 
-def layer(verts, start_coord, total_dim, z_coord):
-    return [np.concatenate((np.zeros(start_coord), x, np.zeros(total_dim - start_coord - verts), [z_coord]))
+def layer_general(verts, start_coord, total_dim, z_coords):
+    return [np.concatenate((np.zeros(start_coord), x, np.zeros(total_dim - start_coord - verts - len(z_coords) + 1), z_coords))
               for x in simplex_coords(verts - 1)]
 
-def layer_coords(maximals, order):
-    v = max(sum(maximals, start=()))
+seven_coords = np.array([
+     [0.78699, 0.24726, -1],
+     [0.4, .6, -1],
+     [0, 1.35653, 0.30976],
+     [0.73746, 1.23658, 1],
+     [0.24891, 0.6016, 2],
+     [-0.26699, 0.35056, -0.5],
+     [0.8, 0.3, 0.5],
+     [0.78699, 0.24726, -1],
+     [0.4, .6, -1],
+     [0.4, .6, -1]
+])
+
+def layer_coords_general(maximals, k):
+    v = max(sum(maximals, start=())) + 1
     d = v - 4
-    x = (v+1) * [0]
+    x = v * [0]
     start = 0
-    for ii, i in enumerate(order):
-        s = maximals[i]
-        lay = layer(len(s), start, d, ii)
+
+    for i, s in enumerate(maximals):
+        lay = layer_general(len(s), start, d, seven_coords[i])
         for j, la in zip(s, lay):
             x[j] = la
         start += len(s) - 1
-    return x[1:]
+    return x
 
-def embed_layers(maximals):
-    order = 0, 1, 2, 3, 4
-    x = layer_coords(maximals, order)
-    part = facet_partition(maximals)
-    embed_maximal(maximals, x, part[1])
+def embed_layers_general(maximals, k):
+    x = layer_coords_general(maximals, k)
+    part = facet_partition(maximals, k)
+    faces = sum(part, start=[])
+
+    faces1 = part[1] + part[5] + part[8] + part[9] + part[12] + part[13]
+    embed_maximal_general(maximals, x, faces, faces1)
+
+def embed_maximal_general(maximals, x, faces, faces1):
+    v = max(max(i) for i in maximals)
+    d = v - 4
+    S = Simplicial(v)
+    S.faces = faces
+    print(f'faces = {faces}')
+    faces2 = list(set(faces) - set(faces1))
+    print(f'faces1 = {faces1}')
+    print(f'faces2 = {faces2}')
+
+    S.coords = np.array(x)
+    for f in faces1, faces2:
+        S.faces = f
+        print(S.check_embedding())
+
+    from testing import intersection_volume_proportion
+    S.faces = faces
+    print('intersection volume:', intersection_volume_proportion(S))
+    S.faces = faces1
+    #S.plot(d, double=faces2)
 
 if __name__ == '__main__':
-    maximals = (1, 2, 3), (4,), (5,), (6,), (7,)
-    embed_layers(maximals)
-    quit()
-
-
-    S = Simplicial(7)
-    faces = (1, 2, 3, 4), (1, 2, 4, 5), (1, 2, 5, 6), (1, 2, 6, 7), (1, 2, 3, 7)
-
-    x = 8*[(2, 3, 4)]
-
-    x[1] = 0, 0, 0
-    x[2] = 2, 0, 0
-    x[3] = 1, 2, -1
-    x[4] = 1, 2, 0
-    x[5] = 1.2, 0, 1
-    x[6] = 1, -2, 0
-    x[7] = 1, -2, -1
-
-
-    S.faces = sub1(faces)
-    S.coords = np.array(x[1:])
-    print(S.check_embedding())
-    from testing import intersection_volume_proportion
-    print(intersection_volume_proportion(S))
-    S.plot(3)
+    maximals = (0, 7, 8), (1, 12), (2,), (3, 11), (4, 9, 10, 13), (5,), (6,)
+    embed_layers_general(maximals, 7)
