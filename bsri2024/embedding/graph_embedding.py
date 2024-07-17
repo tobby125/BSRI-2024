@@ -1,7 +1,7 @@
 # importing mplot3d toolkits, numpy and matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
-from itertools import combinations, chain, product
+from itertools import combinations, chain
 import random
 
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -52,6 +52,10 @@ class Graph:
         ax.set_ylim3d(0, 100)
         ax.set_zlim3d(0, 100)'''
         plt.show()
+
+
+def powerset(x):
+    return list(chain.from_iterable(combinations(x, i) for i in range(len(x) + 1)))
 
 class Simplicial:
     def __init__(self, vertices, faces=None):

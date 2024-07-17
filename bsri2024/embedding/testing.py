@@ -1,11 +1,9 @@
-from itertools import chain, combinations, product
+from itertools import combinations, product
 import math
 import numpy as np
 from graph_embedding import Simplicial
 
 
-def powerset(x):
-    return list(chain.from_iterable(combinations(x, i) for i in range(len(x) + 1)))
 def add1(f):
     return [tuple(j + 1 for j in i) for i in f]
 def sub1(f):
