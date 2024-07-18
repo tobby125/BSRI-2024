@@ -5,39 +5,49 @@ from math import sqrt
 import random
 from itertools import product
 
-S = Simplicial(7)
+maximals = (3, 6, 9), (2, 5, 8), (1, 4, 7), (1, 3, 5, 7), (2, 4, 6, 8), (3, 5, 7, 9), (4, 6, 8, 1), (5, 7, 9, 2), (6, 8, 1, 3), (7, 9, 2, 4), (8, 1, 3, 5), (9, 2, 4, 6)
 
-maximals = (3, 6, 9), (1, 3, 5, 7), (2, 4, 6, 8), (4, 6, 8, 1), (5, 7, 9, 2), (7, 9, 2, 4), (8, 1, 3, 5)
+v = len(maximals)
+S = Simplicial(v)
 
 maximals = sub1(maximals)
 
 F = 9*[()]
-for i in range(7):
-    for j in maximals[i]:
+for i, x in enumerate(maximals):
+    for j in x:
         F[j] += (i,)
 
 S.non_faces(F)
 S.reduce_faces()
 
+print(add1(F))
 print(add1(S.faces))
 
-'''d = [0, 1, 2, 4, 5, 7, 8]
-for i in S.faces:
-    print(tuple(d[j] for j in i))'''
+x = np.zeros((9, 4))
 
-x = np.zeros((8, 3))
+x[1] = 0, 0, 0, -1
+x[8] = 0, 0, 0, 1
 
-x[1] = 0, 0, 0
+x[5] = 1, 0, 0, 0
+x[6] = -1, 0, 0, 0
 
-x[2] = 1, 0, -1
-x[3] = -1, 0, -1
-x[4] = 0, 1, 1
-x[7] = 0, -1, 1
+x[2] = 0, 1, 0, 0
+x[7] = 0, -1, 0, 0
 
-x[6] = 0, -1/4, 0
-x[5] = 0, 1/4, 0
+x[3] = 0, 0, 1, 0
+x[4] = 0, 0, -1, 0
 
 
 S.coords = x[1:]
 
-S.plot(3)
+faces1 = (1, 2, 3, 5, 8), (1, 2, 3, 6, 8), (1, 2, 4, 5, 8), (1, 2, 4, 6, 8), (1, 3, 5, 7, 8), (1, 3, 6, 7, 8), (1, 4, 5, 7, 8), (1, 4, 6, 7, 8)
+faces2 = (2, 3, 4, 5, 8), (2, 3, 6, 7, 8), (4, 5, 6, 7, 8)
+
+S.faces = sub1(faces1)
+print(S.check_embedding())
+
+S.faces = sub1(faces2)
+print(S.check_embedding(True))
+print(S.intersection_volume_proportion())
+
+S.plot(4)

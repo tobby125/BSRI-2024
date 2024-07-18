@@ -76,7 +76,7 @@ def base_coords(k):
     x[d + 4] = np.concatenate((np.zeros(d - 1), [-0.99]))
     x[d + 2] = np.concatenate((np.zeros(d - 1), [0.99]))
 
-    x[d + 3] = np.concatenate(((d - 1) // 2 * [-0.001], (d - 1) // 2 * [0.001], [0]))
+    x[d + 3] = np.concatenate(((d - 1) // 2 * [-0.01], (d - 1) // 2 * [0.01], [0]))
 
     return x[1:]
 
@@ -105,7 +105,7 @@ def embed_layers_general(maximals, k):
     embed_maximal_general(maximals, x, faces, faces1)
 
 def embed_maximal_general(maximals, x, faces, faces1):
-    v = max(max(i) for i in maximals)
+    v = max(max(i) for i in maximals) + 1
     d = v - 4
     S = Simplicial(v)
     S.faces = faces
@@ -115,6 +115,7 @@ def embed_maximal_general(maximals, x, faces, faces1):
     print(f'faces2 = {faces2}')
 
     S.coords = np.array(x)
+    print(np.array([[round(i, 3) for i in j] for j in S.coords]))
     for f in faces1, faces2:
         S.faces = f
         print(S.check_embedding())
@@ -122,8 +123,11 @@ def embed_maximal_general(maximals, x, faces, faces1):
     S.faces = faces
     print('intersection volume:', S.intersection_volume_proportion())
     S.faces = faces1
-    #S.plot(d, double=faces2)
+    S.plot(d, double=faces2)
 
 if __name__ == '__main__':
-    maximals = (0,), (1,), (2, 16, 17), (3, 15), (4,), (5, 18), (6, 7), (8,), (11,), (9,), (10,), (12, 13), (14,)
-    embed_layers_general(maximals, 13)
+    from testing import sub1
+    maximals = (1, 2), (3, 4, 5), (6, 7, 8), (9,), (10, 11), (12,), (13,)
+
+    maximals = sub1(maximals)
+    embed_layers_general(maximals, 7)
